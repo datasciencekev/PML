@@ -1,0 +1,88 @@
+---
+title: "Predictive Machine Learning"
+author: "kts"
+date: "Tuesday, February 17, 2015"
+output: html_document
+---
+
+###Executive Overview
+
+We were asked to build a predicitive model to assess whether subjects were performing barbell lifts properly, based on sensors mounted on their belt, forearm, arm, and on the dumbell itself.  We performed some exploratory data analysis to get an idea of what the data looked like, and built several models as we went.  Presented here is the final model, which testing shows to be accurate about 89% of the time.
+
+###Initial Data Load
+Some steps to get the data ready for use.  Fortunately this was a nice, tidy data set and didn't require significant cleaning.
+
+```{r, warnings=FALSE, message=FALSE}
+#Load useful libraries - in this case only caret is needed.
+library(caret)
+#set the seed for reproducability
+set.seed(1)
+#read in the data - in this case, previously downloaded and stored in the working directory.
+pml <- read.csv("pml-training.csv")
+#separate the data into training and testing sets.
+inTrain <- createDataPartition(y<-pml$classe, p=.8, list=FALSE)
+training <- pml[inTrain,]
+testing <- pml[-inTrain,]
+#Also load in the 20 values for submission back to Coursera
+test  <- read.csv("pml-testing.csv")
+```
+
+###Exploratory Data Analysis
+
+We won't show the entire output here, but running "summary(pml)" indicated that the roll, pitch, yaw, and total_accel values were well populated; and we took a guess that these would be good values to look at in building our model.  We did some featurePlots to confirm this assumption.
+
+```{r}
+featurePlot(x=training[,c("roll_belt","pitch_belt","yaw_belt","total_accel_belt")], y=training$classe,plot = "pairs")
+```
+
+Note that the plot above does appear to indicate some separation between the different performance classes, indicating that these variables are good candidates for predictors.
+
+```{r}
+featurePlot(x=training[,c("roll_arm","pitch_arm","yaw_arm","total_accel_arm")], y=training$classe,plot = "pairs")
+```
+
+Same thing here - the distinct colour areas indicate that this is likely a good set of variables to use as predictors.
+
+##Model Training and Selection
+
+We decided to use the classification tree models packaged with caret.  We took an iterative approach to model building, starting with the measurements from the belt sensor.  As wel added more variables to the model, we p
+
+```{r, warning=FALSE, message=FALSE}
+#Set uo for cross validation.
+train_control <- trainControl(method="cv", number=10)
+
+#Some of the previous models that we built.  We found that adding additional variables increased the accuracy of the prediction.
+
+#model <- train(classe~roll_belt+pitch_belt+yaw_belt+total_accel_belt, method="ctree", data = training)
+#model <- train(classe~roll_belt+pitch_belt+yaw_belt+total_accel_belt+roll_arm+pitch_arm+yaw_arm+total_accel_arm+roll_dumbbell+pitch_dumbbell+yaw_dumbbell+total_accel_dumbbell, method="ctree", data = training)
+
+#The final model - cross validated to show about 87% accuracy.
+model <- train(classe~roll_belt+pitch_belt+yaw_belt+total_accel_belt+roll_arm+pitch_arm+yaw_arm+total_accel_arm+roll_dumbbell+pitch_dumbbell+yaw_dumbbell+total_accel_dumbbell+roll_forearm+pitch_forearm+yaw_forearm+total_accel_forearm, method="ctree", trControl=train_control, data = training)
+```
+
+###Model Results
+
+```{r}
+model$results
+```
+
+Note that the results from cross-validation indicate ~87% accuracy in the final model.
+
+###Test Accuracy on using testing data set
+
+We kept some data back for testing, and generated a confusion matrix to show the results.
+
+```{r}
+predictions <- predict(model, testing[,-160])
+confusionMatrix(predictions, testing$classe)
+```
+
+The confusion matrix shows the outcome of the predictions against the test data set.  Here we see closer to 89% accuracy.  Based on this, we can state that the out of sample error rate will be about 13%.
+
+###Generate Submissions
+
+In the final segment below, we generate the submissions for grading by Coursera.  We ended up with 90% accuracy, which fits with the results of the cross validation and confusion matrix.
+
+```{r}
+outcomes <- predict(model,test)
+```
